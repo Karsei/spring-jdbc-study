@@ -7,35 +7,34 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * 트랜잭션 - 트랜잭션 매니저
+ * 트랜잭션 - 트랜잭션 템플릿
  */
 @Slf4j
-@RequiredArgsConstructor
-public class MemberServiceV3_1 {
-    private final PlatformTransactionManager transactionManager;
+public class MemberServiceV3_2 {
+    private final TransactionTemplate txTemplate;
     private final MemberRepositoryV3 memberRepository;
 
-    public void accountTransfer(String fromId, String toId, int money) {
-        // 트랜잭션 시작
-        TransactionStatus status = transactionManager.getTransaction(new DefaultTransactionDefinition());
+    public MemberServiceV3_2(PlatformTransactionManager transactionManager, MemberRepositoryV3 memberRepository) {
+        // 관례이기도 하고 유연성이 있음
+        this.txTemplate = new TransactionTemplate(transactionManager);
+        this.memberRepository = memberRepository;
+    }
 
-        try {
+    public void accountTransfer(String fromId, String toId, int money) {
+        txTemplate.executeWithoutResult(transactionStatus -> {
             // 비즈니스 로직
-            bizLogic(fromId, toId, money);
-            // 성공 시 커밋
-            transactionManager.commit(status);
-        }
-        catch (Exception e) {
-            // 실패 시 롤백
-            transactionManager.rollback(status);
-            throw new IllegalStateException(e);
-        }
-        // 반환은 트랜잭션 매니저에서 관리해준다.
+            try {
+                bizLogic(fromId, toId, money);
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
     }
 
     private void bizLogic(String fromId, String toId, int money) throws SQLException {
